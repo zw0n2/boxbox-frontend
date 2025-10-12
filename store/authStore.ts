@@ -45,7 +45,7 @@ export const useAuthStore = create<State>()(
         (set, get) => ({
             user: null,
             accessToken: null,
-            lang: 'ko',
+            lang: 'en',
 
             setUser: (u) => set({ user: u }),
             setAccessToken: (token) => set({ accessToken: token }),
