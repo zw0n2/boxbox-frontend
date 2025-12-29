@@ -9,7 +9,8 @@ import BottomNav from '@/components/BottomNav';
 import MyPageModal from '@/components/MyPageModal';
 import Modal from '@/components/Modal';
 
-import { myPageAPI } from '@/apis/myPageAPI';
+//  수퍼베이스 클라이언트 임포트
+import { supabase } from '@/utils/supabase';
 import { useAuthStore } from '../../store/authStore';
 
 interface FanMessage {
@@ -18,11 +19,13 @@ interface FanMessage {
     text: string;
 }
 
+// 로그인을 없애고 마이페이지에서 보여줄 고정 닉네임
+const GUEST_NICKNAME = 'Guest';
+
 const MyPage = () => {
     const router = useRouter();
     const { modal } = router.query;
     const lang = useAuthStore((state) => state.lang);
-    const currentUser = useAuthStore((state) => state.user);
 
     const [isFanRadioModalOpen, setIsFanRadioModalOpen] = useState(false);
     const [character, setCharacter] = useState<'female' | 'male'>('female');
@@ -33,24 +36,33 @@ const MyPage = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    // fetchMyRadioList 내부의 매핑 로직 수정
     useEffect(() => {
         const fetchMyRadioList = async () => {
             setIsLoading(true);
-            const dataFromApi = await myPageAPI.getMyRadioList();
+            try {
+                const { data, error: sbError } = await supabase
+                    .from('radios')
+                    .select('*')
+                    .eq('nickname', GUEST_NICKNAME)
+                    .order('created_at', { ascending: false });
 
-            if (dataFromApi) {
-                const formattedMessages: FanMessage[] = dataFromApi.map((item) => ({
-                    id: item.radioSn,
-                    number: `#${String(item.radioSn).padStart(2, '0')}`,
-                    text: lang === 'ko' ? item.radioTextKor : item.radioTextEng,
-                }));
-                setMyMessages(formattedMessages);
+                if (data) {
+                    const formattedMessages: FanMessage[] = data.map((item) => ({
+                        id: item.id,
+                        number: `#${String(item.id).padStart(2, '0')}`,
+                        text: lang === 'ko' ? item.message_ko || item.message_en : item.message_en || item.message_ko,
+                    }));
+                    setMyMessages(formattedMessages);
+                }
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setIsLoading(false);
             }
-            // ...
-            setIsLoading(false);
         };
         fetchMyRadioList();
-    }, [lang]);
+    }, [lang]); // lang이 변경될 때마다 텍스트가 스위칭됨
 
     useEffect(() => {
         if (modal === 'fan-radio') {
@@ -62,35 +74,38 @@ const MyPage = () => {
         setDeletingMessageId(id);
         setIsDeleteModalOpen(true);
     };
+
     const handleConfirmDelete = async () => {
         if (deletingMessageId === null) return;
 
-        const success = await myPageAPI.deleteMyRadio(deletingMessageId);
+        try {
+            const { error: sbError } = await supabase.from('radios').delete().eq('id', deletingMessageId);
 
-        if (success) {
+            if (sbError) throw sbError;
+
+            // 로컬 상태 업데이트
             setMyMessages((currentMessages) => currentMessages.filter((message) => message.id !== deletingMessageId));
-            console.log(`${deletingMessageId}번 메시지가 성공적으로 삭제되었습니다.`);
-        } else {
-            alert('메시지 삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+            console.log(`${deletingMessageId}번 메시지가 삭제되었습니다.`);
+        } catch (err) {
+            console.error('Delete error:', err);
+            alert('메시지 삭제에 실패했습니다.');
+        } finally {
+            setIsDeleteModalOpen(false);
+            setDeletingMessageId(null);
         }
-
-        setIsDeleteModalOpen(false);
-        setDeletingMessageId(null);
     };
 
-    //  로딩 중
     if (isLoading) {
         return <div className="min-h-screen bg-[#191922] text-white flex justify-center items-center">Loading...</div>;
     }
 
-    // 에러 메시지
     if (error) {
         return <div className="min-h-screen bg-[#191922] text-red-500 flex justify-center items-center">{error}</div>;
     }
 
     return (
         <div className="min-h-screen bg-[#191922]">
-            <Header title="MYPAGE" rightIcon="logout" />
+            <Header title="MYPAGE" />
 
             <div className="relative w-full max-w-md mx-auto">
                 <div className="absolute inset-0 z-0 bg-[url('/images/mypage-bg.svg')] bg-center bg-no-repeat" />
@@ -106,7 +121,8 @@ const MyPage = () => {
                                 className="mb-4"
                             />
                         </button>
-                        <h2 className="font-bold text-3xl text-[#02F5D0]">{currentUser?.userNickname || 'User'}</h2>
+
+                        <h2 className="font-bold text-3xl text-[#02F5D0]">{GUEST_NICKNAME}</h2>
                     </main>
                     <button
                         onClick={() => setIsFanRadioModalOpen(true)}
@@ -121,7 +137,7 @@ const MyPage = () => {
 
             <MyPageModal
                 isOpen={isFanRadioModalOpen}
-                nickname={currentUser?.userNickname || 'User'}
+                nickname={GUEST_NICKNAME}
                 messages={myMessages}
                 onClose={() => {
                     setIsFanRadioModalOpen(false);
@@ -147,5 +163,4 @@ const MyPage = () => {
 };
 
 MyPage.hideLayout = true;
-
 export default MyPage;
