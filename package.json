@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@headlessui/react": "^2.2.8",
+    "@supabase/supabase-js": "^2.89.0",
     "axios": "^1.12.2",
     "file-saver": "^2.0.5",
     "html2canvas": "^1.4.1",
