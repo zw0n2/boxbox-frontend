@@ -1,0 +1,17 @@
+name: Supabase Keep Alive
+
+on:
+    schedule:
+        # 3일마다 한 번씩 실행 (UTC 기준 00:00)
+        - cron: '0 0 */3 * *'
+    workflow_dispatch: # 수동으로 실행 버튼을 눌러 테스트
+
+jobs:
+    ping:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Send a request to Supabase
+              run: |
+                  curl -X GET "${{ secrets.SUPABASE_URL }}/rest/v1/radios?select=*" \
+                  -H "apikey: ${{ secrets.SUPABASE_KEY }}" \
+                  -H "Authorization: Bearer ${{ secrets.SUPABASE_KEY }}"
